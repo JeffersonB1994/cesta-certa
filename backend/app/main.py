@@ -33,9 +33,16 @@ def health():
 
 @app.post("/auth/login", response_model=schemas.LoginResposta)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    if security.login_bloqueado(form.username):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas. Tente novamente em 15 minutos.",
+        )
     usuario = db.scalar(select(models.Usuario).where(models.Usuario.email == form.username))
     if usuario is None or not security.verificar_senha(form.password, usuario.senha_hash):
+        security.registrar_falha_login(form.username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos")
+    security.limpar_tentativas(form.username)
     return {"access_token": security.criar_token(usuario)}
 
 
