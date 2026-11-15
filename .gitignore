@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+*.db
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Sistema
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
