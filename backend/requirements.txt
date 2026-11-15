@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+pydantic>=2.0
+python-multipart
+argon2-cffi
+pyjwt
+pytest
+pytest-cov
+httpx
