@@ -8,9 +8,18 @@ from sqlalchemy.pool import StaticPool
 from app import models
 from app.database import Base, get_db
 from app.main import app
+from app import security
 from app.security import gerar_hash
 
 SENHA_TESTE = "senha-de-teste-123"
+
+
+@pytest.fixture(autouse=True)
+def limpar_tentativas_login():
+    """Cada teste começa sem tentativas de login registradas."""
+    security._tentativas.clear()
+    yield
+    security._tentativas.clear()
 
 
 @pytest.fixture
