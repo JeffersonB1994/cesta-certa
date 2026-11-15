@@ -12,10 +12,24 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_pagina_inicial_abre(client):
+    resposta = client.get("/")
+    assert resposta.status_code == 200
+    assert "Cesta Certa" in resposta.text
+
+
 def test_login_com_senha_errada(client, voluntario):
     resposta = client.post("/auth/login", data={"username": voluntario.email, "password": "errada"})
     assert resposta.status_code == 401
     assert resposta.json()["detail"] == "E-mail ou senha inválidos"
+
+
+def test_login_bloqueado_apos_5_tentativas_erradas(client, voluntario):
+    for _ in range(5):
+        client.post("/auth/login", data={"username": voluntario.email, "password": "errada"})
+    resposta = client.post("/auth/login", data={"username": voluntario.email, "password": "senha-de-teste-123"})
+    assert resposta.status_code == 429
+    assert "15 minutos" in resposta.json()["detail"]
 
 
 def test_rota_protegida_sem_login(client):

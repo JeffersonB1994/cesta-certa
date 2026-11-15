@@ -1,6 +1,9 @@
 """API do Cesta Certa."""
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +28,15 @@ app.add_middleware(
 )
 
 
+PAGINA_INICIAL = Path(__file__).parent / "static" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def inicio():
+    """Abre as telas do sistema (login, busca/entrega e resultado)."""
+    return FileResponse(PAGINA_INICIAL)
+
+
 @app.get("/health")
 def health():
     """Verifica se a API está no ar."""
@@ -33,9 +45,16 @@ def health():
 
 @app.post("/auth/login", response_model=schemas.LoginResposta)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    if security.login_bloqueado(form.username):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas. Tente novamente em 15 minutos.",
+        )
     usuario = db.scalar(select(models.Usuario).where(models.Usuario.email == form.username))
     if usuario is None or not security.verificar_senha(form.password, usuario.senha_hash):
+        security.registrar_falha_login(form.username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos")
+    security.limpar_tentativas(form.username)
     return {"access_token": security.criar_token(usuario)}
 
 
