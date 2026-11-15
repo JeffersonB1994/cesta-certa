@@ -73,3 +73,24 @@ def buscar_familias(
     usuario: models.Usuario = Depends(security.usuario_atual),
 ):
     return [_familia_resposta(db, f) for f in services.buscar_familias(db, busca)]
+
+
+@app.post("/entregas", response_model=schemas.EntregaResposta, status_code=status.HTTP_201_CREATED)
+def registrar_entrega(
+    dados: schemas.EntregaCriar,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(security.usuario_atual),
+):
+    try:
+        entrega = services.registrar_entrega(db, dados.familia_id, usuario.id)
+    except services.FamiliaNaoEncontradaError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Família não encontrada ou inativa")
+    except services.EntregaDuplicadaError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Família já recebeu a cesta neste mês")
+    return schemas.EntregaResposta(
+        id=entrega.id,
+        familia_id=entrega.familia_id,
+        nome_responsavel=entrega.familia.nome_responsavel,
+        data_entrega=entrega.data_entrega,
+        mes_referencia=entrega.mes_referencia,
+    )
