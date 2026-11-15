@@ -1,11 +1,12 @@
 """API do Cesta Certa."""
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import models, schemas, security
+from . import models, schemas, security, services
 from .database import Base, engine, get_db
 
 Base.metadata.create_all(bind=engine)
@@ -36,3 +37,39 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     if usuario is None or not security.verificar_senha(form.password, usuario.senha_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos")
     return {"access_token": security.criar_token(usuario)}
+
+
+def _familia_resposta(db: Session, familia: models.Familia) -> schemas.FamiliaResposta:
+    return schemas.FamiliaResposta(
+        id=familia.id,
+        nome_responsavel=familia.nome_responsavel,
+        cpf_mascarado=services.mascarar_cpf(familia.cpf),
+        status=familia.status,
+        recebeu_no_mes=services.ja_recebeu_no_mes(db, familia.id, services.mes_referencia()),
+    )
+
+
+@app.post("/familias", response_model=schemas.FamiliaResposta, status_code=status.HTTP_201_CREATED)
+def cadastrar_familia(
+    dados: schemas.FamiliaCriar,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(security.usuario_atual),
+):
+    familia = models.Familia(**dados.model_dump())
+    db.add(familia)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CPF já cadastrado")
+    db.refresh(familia)
+    return _familia_resposta(db, familia)
+
+
+@app.get("/familias", response_model=list[schemas.FamiliaResposta])
+def buscar_familias(
+    busca: str = Query(min_length=1, max_length=120),
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(security.usuario_atual),
+):
+    return [_familia_resposta(db, f) for f in services.buscar_familias(db, busca)]
